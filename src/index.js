@@ -1,18 +1,20 @@
 import { readJsonFile, writeToJsonFile, writeCfgToCfgdir } from './files';
 import { genConfiguration } from './genconfig';
-import { checkAndFillDomain, checkDomain, getPropInstances, getSinglePropInstance } from './schema';
-import { calcActivityChange, calcPropsValues, calcValue } from './calcs';
 import {
-  filterObjInList, filterPropInstances, filterPropInstancesByPhase, filterPropInstancesByEntity,
-  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getPropValues,
-  getPropValue, hasAttributeValue, localeToFakerModule, sortPropsByFactors, sumValuesForKey
+  checkAndFillDomain, checkDomain, getDimInstances, getSingleDimInstance, requiredPropNames
+} from './schema';
+import { calcActivityChange, calcDimsValues, calcValue } from './calcs';
+import {
+  filterObjInList, filterDimInstances, filterDimInstancesByPhase, filterDimInstancesByEntity,
+  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getDimValues,
+  getDimValue, getDimValueParam, hasAttributeValue, localeToFakerModule, sortDimsByFactors, sumValuesForKey
 } from './util';
 
 export {
-  checkAndFillDomain, checkDomain, getPropInstances, getSinglePropInstance,
-  calcActivityChange, calcPropsValues, calcValue,
+  checkAndFillDomain, checkDomain, getDimInstances, getSingleDimInstance, requiredPropNames,
+  calcActivityChange, calcDimsValues, calcValue,
   genConfiguration, readJsonFile, writeToJsonFile, writeCfgToCfgdir,
-  filterObjInList, filterPropInstances, filterPropInstancesByPhase, filterPropInstancesByEntity,
-  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getPropValues,
-  getPropValue, hasAttributeValue, localeToFakerModule, sortPropsByFactors, sumValuesForKey
+  filterObjInList, filterDimInstances, filterDimInstancesByPhase, filterDimInstancesByEntity,
+  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getDimValues,
+  getDimValue, getDimValueParam, hasAttributeValue, localeToFakerModule, sortDimsByFactors, sumValuesForKey
 };

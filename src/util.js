@@ -13,121 +13,126 @@ export const getAttributeFromJson = (jsonStr, key) => {
   return JSON.parse(jsonStr)[key]
 };
 
-export const getPropValues = (ctx, valuesDescriptor) => {
-  const { propInstances, propValues } = ctx;
-  const entPropInstances = filterPropInstancesByEntity(valuesDescriptor.entity, propInstances);
+export const getDimValues = (ctx, valuesDescriptor) => {
+  const { dimInstances, dimValues } = ctx;
+  const entDimInstances = filterDimInstancesByEntity(valuesDescriptor.entity, dimInstances);
   const values = R.reduce(
-    getAndAccumValue(propValues, valuesDescriptor.id),
+    getAndAccumValue(dimValues, valuesDescriptor.id),
     {},
-    entPropInstances
+    entDimInstances
   );
   return values;
 };
 
 export const getAttributes = (ctx, valuesDescriptor) => {
-  const { propInstances, propValues } = ctx;
-  const attrPropInstances = filterPropInstancesByEntity(valuesDescriptor.entity, propInstances)
-    .filter(propAndInst => propAndInst.isAttribute);
+  const { dimInstances, dimValues } = ctx;
+  const attrDimInstances = filterDimInstancesByEntity(valuesDescriptor.entity, dimInstances)
+    .filter(dimAndInst => dimAndInst.isAttribute);
   const attributes = R.reduce(
-    getAndAccumValue(propValues, valuesDescriptor.id),
+    getAndAccumValue(dimValues, valuesDescriptor.id),
     {},
-    attrPropInstances
+    attrDimInstances
   );
   return attributes;
 };
 
-const getAndAccumValue = R.curry((propValues, id, accum, propAndInst) => {
-  const { entity, instName } = propAndInst;
+const getAndAccumValue = R.curry((dimValues, id, accum, dimAndInst) => {
+  const { entity, instName } = dimAndInst;
   const keyPath = R.split('.', instName);
   const valuePath = R.concat([entity, id], keyPath);
-  const value = R.path(valuePath, propValues);
+  const value = R.path(valuePath, dimValues);
   return R.assocPath(keyPath, value, accum);
 });
 
-export const getPropValue = (propValues, id, propAndInst) => {
-  const { entity, instName } = propAndInst;
+export const getDimValue = (dimValues, id, dimAndInst) => {
+  const { entity, instName } = dimAndInst;
   const keyPath = R.split('.', instName);
   const valuePath = R.concat([entity, id], keyPath);
-  const value = R.path(valuePath, propValues);
+  const value = R.path(valuePath, dimValues);
   return value;
+};
+
+export const getDimValueParam = (key, value, dimAndInst) => {
+  const idx = R.indexOf(value, dimAndInst.values);
+  return dimAndInst.valueParams[idx][key];
 };
 
 export const hasAttributeValue = R.curry((key, val, obj) => obj.attributes[key] === val);
 
-export const sortPropsByFactors = (propInstances) => {
+export const sortDimsByFactors = (dimInstances) => {
   const sorted = [];
-  const deployProps = filterPropInstancesByPhase('deploy', propInstances);
-  const activityProps = filterPropInstancesByPhase('activity', propInstances);
-  const arriveProps = filterPropInstancesByPhase('arrive', propInstances);
-  const assignProps = filterPropInstancesByPhase('assign', propInstances);
-  const completeProps = filterPropInstancesByPhase('complete', propInstances);
+  const deployDims = filterDimInstancesByPhase('deploy', dimInstances);
+  const activityDims = filterDimInstancesByPhase('activity', dimInstances);
+  const arriveDims = filterDimInstancesByPhase('arrive', dimInstances);
+  const assignDims = filterDimInstancesByPhase('assign', dimInstances);
+  const completeDims = filterDimInstancesByPhase('complete', dimInstances);
 
-  sortAndAddPropInstances(sorted, deployProps);
-  sortAndAddPropInstances(sorted, activityProps);
-  sortAndAddPropInstances(sorted, arriveProps);
-  sortAndAddPropInstances(sorted, assignProps);
-  sortAndAddPropInstances(sorted, completeProps);
+  sortAndAddDimInstances(sorted, deployDims);
+  sortAndAddDimInstances(sorted, activityDims);
+  sortAndAddDimInstances(sorted, arriveDims);
+  sortAndAddDimInstances(sorted, assignDims);
+  sortAndAddDimInstances(sorted, completeDims);
   return sorted;
 }
 
-const sortAndAddPropInstances = (sorted, propInstances) => {
+const sortAndAddDimInstances = (sorted, dimInstances) => {
   let itemWasAdded;
   let addedCnt = 0;
   do {
     itemWasAdded = false;
-    propInstances.forEach(prop => {
-      if (!inSorted(sorted, prop) && hasAllDependencies(sorted, prop)) {
-        sorted.push(prop);
+    dimInstances.forEach(dim => {
+      if (!inSorted(sorted, dim) && hasAllDependencies(sorted, dim)) {
+        sorted.push(dim);
         itemWasAdded = true;
         addedCnt += 1;
       }
     })
   } while (itemWasAdded);
-  if (addedCnt === propInstances.length)
+  if (addedCnt === dimInstances.length)
     return;
-  throw new Error(`props influences contain a circular or missing dependency`);
+  throw new Error(`dimensions influences contain a circular or missing dependency`);
 };
 
-export const filterPropInstances = (valuesDescriptor, propInstances) => {
+export const filterDimInstances = (valuesDescriptor, dimInstances) => {
   const { entity, phase } = valuesDescriptor;
-  const propsByEntity = filterPropInstancesByEntity(entity, propInstances);
-  return filterPropInstancesByPhase(phase, propsByEntity);
+  const dimsByEntity = filterDimInstancesByEntity(entity, dimInstances);
+  return filterDimInstancesByPhase(phase, dimsByEntity);
 };
 
-export const filterPropInstancesByPhase = (phase, propInstances) => {
+export const filterDimInstancesByPhase = (phase, dimInstances) => {
   const filtered = R.filter(
     inst => inst.phase === phase,
-    propInstances
+    dimInstances
   );
   return filtered;
 };
 
-export const filterPropInstancesByEntity = (entity, propInstances) => {
+export const filterDimInstancesByEntity = (entity, dimInstances) => {
   const filtered = R.filter(
     inst => inst.entity === entity,
-    propInstances
+    dimInstances
   );
   return filtered;
 };
 
-const inSorted = (sorted, prop) => R.any(p => p.instName === prop.instName, sorted);
+const inSorted = (sorted, dim) => R.any(p => p.instName === dim.instName, sorted);
 
-const hasAllDependencies = (sorted, prop) => {
-  const dependencyNames = getFactorInstNames(prop.influences);
-  return R.all(instNameInPropList(sorted), dependencyNames);
+const hasAllDependencies = (sorted, dim) => {
+  const dependencyNames = getFactorInstNames(dim.influences);
+  return R.all(instNameInDimList(sorted), dependencyNames);
 };
 
 const getFactorInstNames = (influences) => {
   const factors = influences.map(R.prop('factor'));
   const instNames = factors.map(f => {
-    const [_propName, instName] = f.split('.');
+    const [_dimName, instName] = f.split('.');
     return instName;
   })
   return instNames;
 };
 
-const instNameInPropList = R.curry((props, instName) => {
-  return R.any(p => p.instName === instName, props);
+const instNameInDimList = R.curry((dimensions, instName) => {
+  return R.any(p => p.instName === instName, dimensions);
 });
 
 export const sumValuesForKey = R.curry((valueKey, arr) => {

@@ -1,21 +1,18 @@
 import * as R from 'ramda';
 const seedrandom = require('seedrandom');
 
-import { calcPropsValues } from './calcs';
-import { getPropInstances, getSinglePropInstance } from './schema';
-import { findObjInList, localeToFakerModule, filterPropInstancesByEntity } from './util';
+import { calcDimsValues } from './calcs';
+import { getDimInstances, getSingleDimInstance, requiredPropNames } from './schema';
+import { findObjInList, localeToFakerModule, filterDimInstancesByEntity } from './util';
 
 export function genConfiguration(domain, locale, seed) {
   const args = { locale, seed };
   const context = { args, domain };
   const cfg = {};
-  cfg.metadata = R.pick(
-    ['brand', 'agentCnt', 'queueFilterProp', 'queueWorkerProps', 'props'],
-    context.domain
-  );
+  cfg.metadata = R.pick(requiredPropNames, context.domain);
   context.cfg = cfg;
-  context.propInstances = getPropInstances(cfg.metadata.props);
-  context.propValues = { workers: {}, tasks: {} }
+  context.dimInstances = getDimInstances(cfg.metadata.dimensions);
+  context.dimValues = { workers: {}, tasks: {} }
   context.rng = seedrandom(args.seed);
   cfg.workers = genWorkers(context);
   cfg.queues = genQueues(context);
@@ -36,23 +33,23 @@ function genWorkers(context) {
 }
 
 function genQueues(context) {
-  const { cfg, propInstances } = context;
+  const { cfg, dimInstances } = context;
   const { metadata } = cfg;
-  const { queueWorkerProps } = metadata;
-  const queuePropName = queueWorkerProps[0];
-  const workerAttributes = filterPropInstancesByEntity('workers', propInstances);
-  const propAndInst = workerAttributes.find(a => a.instName === queuePropName);
-  const { valueCnt, values } = propAndInst;
-  const queues = values.map(propToQueue(queuePropName, valueCnt));
+  const { queueWorkerDims } = metadata;
+  const queueDimName = queueWorkerDims[0];
+  const workerAttributes = filterDimInstancesByEntity('workers', dimInstances);
+  const dimAndInst = workerAttributes.find(a => a.instName === queueDimName);
+  const { valueCnt, values } = dimAndInst;
+  const queues = values.map(dimToQueue(queueDimName, valueCnt));
   return queues;
 }
 
 const genWorkflow = (context) => {
-  const { cfg, propInstances } = context;
+  const { cfg, dimInstances } = context;
   const { metadata } = cfg;
-  const { brand, queueFilterProp: filterPropName } = metadata;
-  const propAndInst = findObjInList('instName', filterPropName, propInstances);
-  const filters = propAndInst.values.map(propToFilter(filterPropName));
+  const { brand, queueFilterDim: filterDimName } = metadata;
+  const dimAndInst = findObjInList('instName', filterDimName, dimInstances);
+  const filters = dimAndInst.values.map(dimToFilter(filterDimName));
   const workflow = {
     friendlyName: `${brand} Workflow`,
     configuration: {
@@ -65,7 +62,7 @@ const genWorkflow = (context) => {
   return workflow;
 };
 
-const propToQueue = (attrName, valueCnt) =>
+const dimToQueue = (attrName, valueCnt) =>
   (attrValue) => {
     const expr = (valueCnt === 1)
       ? `${attrName} == '${attrValue}'`
@@ -77,7 +74,7 @@ const propToQueue = (attrName, valueCnt) =>
     return data;
   }
 
-const propToFilter = (attrName) =>
+const dimToFilter = (attrName) =>
   (attrValue) => {
     const targets = [{
       queue: attrValue,
@@ -91,7 +88,7 @@ const propToFilter = (attrName) =>
   };
 
 const makeWorker = (i, context) => {
-  const { args, cfg, propInstances } = context;
+  const { args, cfg, dimInstances } = context;
   const { locale } = args;
   const { metadata } = cfg;
   const agtNum = `${i}`.padStart(3, '0');
@@ -99,7 +96,7 @@ const makeWorker = (i, context) => {
   const fakerModule = localeToFakerModule(locale);
   const full_name = fakerModule.person.fullName();
   const valuesDescriptor = { entity: 'workers', phase: 'deploy', id: full_name };
-  let customAttrs = calcPropsValues(context, valuesDescriptor);
+  let customAttrs = calcDimsValues(context, valuesDescriptor);
   if (R.hasPath(['routing', 'skills'], customAttrs)) {
     customAttrs = R.assocPath(['routing', 'levels'], {}, customAttrs);
   }
@@ -109,11 +106,11 @@ const makeWorker = (i, context) => {
     full_name,
     ...customAttrs
   };
-  const channelPropInstance = getSinglePropInstance('channel', propInstances);
-  const { values, valueProps } = channelPropInstance;
-  const channelCaps = R.zipWith(makeChannelCapacity, values, valueProps);
+  const channelDimInstance = getSingleDimInstance('channel', dimInstances);
+  const { values, valueParams } = channelDimInstance;
+  const channelCaps = R.zipWith(makeChannelCapacity, values, valueParams);
   return { friendlyName, attributes, channelCaps };
 };
 
-const makeChannelCapacity = (channelName, valueProp) =>
-  ({ name: channelName, capacity: valueProp.baseCapacity });
+const makeChannelCapacity = (channelName, valueParam) =>
+  ({ name: channelName, capacity: valueParam.baseCapacity });
