@@ -20,14 +20,16 @@ const schema = {
         'country': { type: 'string', minLength: 2, maxLength: 2 },
         'state': { type: 'string', minLength: 2, maxLength: 4 },
         'city': { type: 'string' },
-        'zip': { type: 'string' }
+        'zip': { type: 'string' },
+        'agentsPhone': { type: 'string', minLength: 10 }
       }
     },
     customers: {
       type: 'object',
       properties: {
         'country': { type: 'string', minLength: 2, maxLength: 2 },
-        'phoneFormat': { type: 'string' }
+        'phoneFormat': { type: 'string' },
+        'customersPhone': { type: 'string', minLength: 10 }
       }
     },
     dimensions: {

@@ -55,5 +55,9 @@ This function takes a flexsim `config` object and writes the flexsim configurati
 - The following additions and changes have been made to the domain schema:
   - The `props` property has been renamed to `dimensions`.
   - The `valueProps` property within prop instances (now "dimension instances") has been renamed to `valueParams`.
-  - New dimensions have been added: `center` and `customer`.
+  - New properties have been added: `center` and `customers`.
   - The `channel` dimension has been given a new value parameter property, `address`, which gives the phone number or "to" address that customers use to contact the center on that channel.
+### 0.0.16
+- The following additions and changes have been made to the domain schema:
+  - The `customers` property object has been given a new key: `customersPhone`. This is a Twilio phone number used to simulate the speech of customers during phone calls. This phone must be provisioned in the target Twilio project.
+  - The `center` property object has been given a new key: `agentsPhone`. This is a Twilio phone number used to simulate the speech of agents during phone calls. This phone must be provisioned in the target Twilio project.
