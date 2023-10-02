@@ -1,6 +1,8 @@
 import * as R from 'ramda';
 import { fakerEN, fakerDE, fakerES, fakerFR } from '@faker-js/faker';
 
+import { getSingleDimInstance } from './schema';
+
 export const findObjInList = R.curry((key, val, arr) =>
   R.find(obj => (obj[key] === val), arr)
 );
@@ -50,6 +52,11 @@ export const getDimValue = (dimValues, id, dimAndInst) => {
   const valuePath = R.concat([entity, id], keyPath);
   const value = R.path(valuePath, dimValues);
   return value;
+};
+
+export const getDimInstanceValue = (dimInstances, dimValues, dimKey, valuekey) => {
+  const dimAndInst = getSingleDimInstance(dimKey, dimInstances);
+  return getDimValue(dimValues, valuekey, dimAndInst)
 };
 
 export const getDimValueParam = (key, value, dimAndInst) => {

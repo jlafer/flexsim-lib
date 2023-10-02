@@ -3,6 +3,11 @@ import * as R from 'ramda';
 import { getSingleDimInstance } from './schema';
 import { filterDimInstances } from './util';
 
+// The main purpose is to calculate new dim values for the valuesDescriptor
+// and put them into context.dimValues under 'tasks' or 'workers'.
+// It also returns the values calculated for clients that need to get
+// just the newly-calculated values
+
 export function calcDimsValues(ctx, valuesDescriptor) {
   const { dimInstances } = ctx;
   const instancesToCalc = filterDimInstances(valuesDescriptor, dimInstances)

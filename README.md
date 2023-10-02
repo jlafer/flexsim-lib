@@ -46,6 +46,25 @@ writeCfgToCfgdir :: (cfgdir, config) -> undefined
 ```
 This function takes a flexsim `config` object and writes the flexsim configuration files to the supplied `cfgdir` path. The files written are `metadata.json`, `queues.json`, `workers.json` and `workflow.json`. It returns a Promise that will resolve to `undefined` on success or an error if unable to write to the directory.
 
+## Data Model
+```
+context = { dimValues, dimInstances, workers, queues, workflows }
+
+// dimInstances are sorted so that every item comes after all of its calculation prereqs
+dimInstances = [
+  {..dimension, ...instance},
+]
+
+dimValues = {
+  tasks: {                    // keyed by customer fullName
+    {...dimValues,
+      waitTime       // actual wait time
+    }
+  },
+  workers: {}                 // workerAttributes, keyed by worker fullName
+}
+```
+
 ## Changelog
 ### 0.0.12
 - This is the initial release. Some breaking changes are to be expected.
@@ -61,3 +80,5 @@ This function takes a flexsim `config` object and writes the flexsim configurati
 - The following additions and changes have been made to the domain schema:
   - The `customers` property object has been given a new key: `customersPhone`. This is a Twilio phone number used to simulate the speech of customers during phone calls. This phone must be provisioned in the target Twilio project.
   - The `center` property object has been given a new key: `agentsPhone`. This is a Twilio phone number used to simulate the speech of agents during phone calls. This phone must be provisioned in the target Twilio project.
+### 0.0.17
+- Added the getDimInstanceValue function.

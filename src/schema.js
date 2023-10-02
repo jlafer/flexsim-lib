@@ -21,6 +21,8 @@ const schema = {
         'state': { type: 'string', minLength: 2, maxLength: 4 },
         'city': { type: 'string' },
         'zip': { type: 'string' },
+        'ivrVoice': { type: 'string' },
+        'agentVoice': { type: 'string' },
         'agentsPhone': { type: 'string', minLength: 10 }
       }
     },
@@ -29,7 +31,8 @@ const schema = {
       properties: {
         'country': { type: 'string', minLength: 2, maxLength: 2 },
         'phoneFormat': { type: 'string' },
-        'customersPhone': { type: 'string', minLength: 10 }
+        'customersPhone': { type: 'string', minLength: 10 },
+        'voice': { type: 'string' },
       }
     },
     dimensions: {

@@ -97,7 +97,10 @@ const makeWorker = (i, context) => {
   const full_name = fakerModule.person.fullName();
   const valuesDescriptor = { entity: 'workers', phase: 'deploy', id: full_name };
   let customAttrs = calcDimsValues(context, valuesDescriptor);
+
+  // if TR sees 'routing.skills'
   if (R.hasPath(['routing', 'skills'], customAttrs)) {
+    // it expects to find 'routing.levels' so add it (empty)
     customAttrs = R.assocPath(['routing', 'levels'], {}, customAttrs);
   }
   const attributes = {

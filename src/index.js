@@ -6,7 +6,7 @@ import {
 import { calcActivityChange, calcDimsValues, calcValue } from './calcs';
 import {
   filterObjInList, filterDimInstances, filterDimInstancesByPhase, filterDimInstancesByEntity,
-  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getDimValues,
+  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getDimInstanceValue, getDimValues,
   getDimValue, getDimValueParam, hasAttributeValue, localeToFakerModule, sortDimsByFactors, sumValuesForKey
 } from './util';
 
@@ -15,6 +15,6 @@ export {
   calcActivityChange, calcDimsValues, calcValue,
   genConfiguration, readJsonFile, writeToJsonFile, writeCfgToCfgdir,
   filterObjInList, filterDimInstances, filterDimInstancesByPhase, filterDimInstancesByEntity,
-  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getDimValues,
+  findObjInList, formatDt, formatSid, getAttributeFromJson, getAttributes, getDimInstanceValue, getDimValues,
   getDimValue, getDimValueParam, hasAttributeValue, localeToFakerModule, sortDimsByFactors, sumValuesForKey
 };
