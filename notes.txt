@@ -1,0 +1,17 @@
+const keyPath = R.split('.', dimAndInst.instName);
+
+const addDimValueToContext = (dimValues, valuesDescriptor, keyPath, value) => {
+  const { id, entity } = valuesDescriptor;
+  dimValues[entity][id] = R.assocPath(
+    keyPath,
+    value,
+    dimValues[entity][id]
+  );
+};
+
+const calcAndAccumValue = R.curry((ctx, valuesDescriptor, accum, dimAndInst) => {
+  const value = calcAndSaveValue(ctx, valuesDescriptor, dimAndInst);
+  const keyPath = R.split('.', dimAndInst.instName);
+  return R.assocPath(keyPath, value, accum);
+});
+

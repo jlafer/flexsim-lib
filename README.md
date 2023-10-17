@@ -48,12 +48,7 @@ This function takes a flexsim `config` object and writes the flexsim configurati
 
 ## Data Model
 ```
-context = { dimValues, dimInstances, workers, queues, workflows }
-
-// dimInstances are sorted so that every item comes after all of its calculation prereqs
-dimInstances = [
-  {..dimension, ...instance},
-]
+context = { dimValues, workers, queues, workflows }
 
 dimValues = {
   tasks: {                    // keyed by customer fullName
@@ -63,6 +58,9 @@ dimValues = {
   },
   workers: {}                 // workerAttributes, keyed by worker fullName
 }
+
+TODO add documentation on metadata object and add the following
+// dimensions are sorted so that every item comes after all of its calculation prereqs
 ```
 
 ## Changelog
@@ -82,3 +80,8 @@ dimValues = {
   - The `center` property object has been given a new key: `agentsPhone`. This is a Twilio phone number used to simulate the speech of agents during phone calls. This phone must be provisioned in the target Twilio project.
 ### 0.0.17
 - Added the getDimInstanceValue function.
+### 0.0.19
+- Refactored to remove the dimension instance concept
+- Removed the getDimInstanceValue function.
+### 0.0.26
+- Many fixes for bugs caused by removing dimension instances and adding parent to dimension.

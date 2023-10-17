@@ -1,8 +1,6 @@
 import * as R from 'ramda';
 import { fakerEN, fakerDE, fakerES, fakerFR } from '@faker-js/faker';
 
-import { getSingleDimInstance } from './schema';
-
 export const findObjInList = R.curry((key, val, arr) =>
   R.find(obj => (obj[key] === val), arr)
 );
@@ -16,78 +14,69 @@ export const getAttributeFromJson = (jsonStr, key) => {
 };
 
 export const getDimValues = (ctx, valuesDescriptor) => {
-  const { dimInstances, dimValues } = ctx;
-  const entDimInstances = filterDimInstancesByEntity(valuesDescriptor.entity, dimInstances);
+  const { dimValues } = ctx;
+  const entDimensions = filterDimensionsByEntity(valuesDescriptor.entity, ctx);
   const values = R.reduce(
     getAndAccumValue(dimValues, valuesDescriptor.id),
     {},
-    entDimInstances
+    entDimensions
   );
   return values;
 };
 
 export const getAttributes = (ctx, valuesDescriptor) => {
-  const { dimInstances, dimValues } = ctx;
-  const attrDimInstances = filterDimInstancesByEntity(valuesDescriptor.entity, dimInstances)
-    .filter(dimAndInst => dimAndInst.isAttribute);
+  const { dimValues } = ctx;
+  const attrDimensions = filterDimensionsByEntity(valuesDescriptor.entity, ctx)
+    .filter(dimension => dimension.isAttribute);
   const attributes = R.reduce(
     getAndAccumValue(dimValues, valuesDescriptor.id),
     {},
-    attrDimInstances
+    attrDimensions
   );
   return attributes;
 };
 
-const getAndAccumValue = R.curry((dimValues, id, accum, dimAndInst) => {
-  const { entity, instName } = dimAndInst;
-  const keyPath = R.split('.', instName);
-  const valuePath = R.concat([entity, id], keyPath);
-  const value = R.path(valuePath, dimValues);
-  return R.assocPath(keyPath, value, accum);
+const getAndAccumValue = R.curry((dimValues, id, accum, dimension) => {
+  const { entity, name } = dimension;
+  const value = R.path([entity, id, name], dimValues);
+  return R.assoc(name, value, accum);
 });
 
-export const getDimValue = (dimValues, id, dimAndInst) => {
-  const { entity, instName } = dimAndInst;
-  const keyPath = R.split('.', instName);
-  const valuePath = R.concat([entity, id], keyPath);
-  const value = R.path(valuePath, dimValues);
+export const getDimValue = (dimValues, id, dimension) => {
+  const { entity, name } = dimension;
+  const value = R.path([entity, id, name], dimValues);
   return value;
 };
 
-export const getDimInstanceValue = (dimInstances, dimValues, dimKey, valuekey) => {
-  const dimAndInst = getSingleDimInstance(dimKey, dimInstances);
-  return getDimValue(dimValues, valuekey, dimAndInst)
-};
-
-export const getDimValueParam = (key, value, dimAndInst) => {
-  const idx = R.indexOf(value, dimAndInst.values);
-  return dimAndInst.valueParams[idx][key];
+export const getDimOptionParam = (key, parentValue, value, dimension) => {
+  const idx = R.indexOf(value, dimension.options[parentValue]);
+  return dimension.optionParams[parentValue][idx][key];
 };
 
 export const hasAttributeValue = R.curry((key, val, obj) => obj.attributes[key] === val);
 
-export const sortDimsByFactors = (dimInstances) => {
+export const sortDimsByFactors = (ctx) => {
   const sorted = [];
-  const deployDims = filterDimInstancesByPhase('deploy', dimInstances);
-  const activityDims = filterDimInstancesByPhase('activity', dimInstances);
-  const arriveDims = filterDimInstancesByPhase('arrive', dimInstances);
-  const assignDims = filterDimInstancesByPhase('assign', dimInstances);
-  const completeDims = filterDimInstancesByPhase('complete', dimInstances);
+  const deployDims = filterDimensionsByPhase('deploy', ctx);
+  const activityDims = filterDimensionsByPhase('activity', ctx);
+  const arriveDims = filterDimensionsByPhase('arrive', ctx);
+  const assignDims = filterDimensionsByPhase('assign', ctx);
+  const completeDims = filterDimensionsByPhase('complete', ctx);
 
-  sortAndAddDimInstances(sorted, deployDims);
-  sortAndAddDimInstances(sorted, activityDims);
-  sortAndAddDimInstances(sorted, arriveDims);
-  sortAndAddDimInstances(sorted, assignDims);
-  sortAndAddDimInstances(sorted, completeDims);
+  sortAndAddDimensions(sorted, deployDims);
+  sortAndAddDimensions(sorted, activityDims);
+  sortAndAddDimensions(sorted, arriveDims);
+  sortAndAddDimensions(sorted, assignDims);
+  sortAndAddDimensions(sorted, completeDims);
   return sorted;
 }
 
-const sortAndAddDimInstances = (sorted, dimInstances) => {
+const sortAndAddDimensions = (sorted, dimensions) => {
   let itemWasAdded;
   let addedCnt = 0;
   do {
     itemWasAdded = false;
-    dimInstances.forEach(dim => {
+    dimensions.forEach(dim => {
       if (!inSorted(sorted, dim) && hasAllDependencies(sorted, dim)) {
         sorted.push(dim);
         itemWasAdded = true;
@@ -95,51 +84,43 @@ const sortAndAddDimInstances = (sorted, dimInstances) => {
       }
     })
   } while (itemWasAdded);
-  if (addedCnt === dimInstances.length)
+  if (addedCnt === dimensions.length)
     return;
   throw new Error(`dimensions influences contain a circular or missing dependency`);
 };
 
-export const filterDimInstances = (valuesDescriptor, dimInstances) => {
+export const filterDimensions = (valuesDescriptor, ctx) => {
   const { entity, phase } = valuesDescriptor;
-  const dimsByEntity = filterDimInstancesByEntity(entity, dimInstances);
-  return filterDimInstancesByPhase(phase, dimsByEntity);
+  const dimsByEntity = filterDimensionsByEntity(entity, ctx);
+  return filterDimListByPhase(phase, dimsByEntity);
 };
 
-export const filterDimInstancesByPhase = (phase, dimInstances) => {
-  const filtered = R.filter(
-    inst => inst.phase === phase,
-    dimInstances
-  );
-  return filtered;
+export const filterDimensionsByPhase = (phase, ctx) => filterDimListByPhase(phase, ctx.cfg.metadata.dimensions);
+
+const filterDimListByPhase = (phase, dims) => {
+  return R.filter(dim => dim.phase === phase, dims);
 };
 
-export const filterDimInstancesByEntity = (entity, dimInstances) => {
-  const filtered = R.filter(
-    inst => inst.entity === entity,
-    dimInstances
-  );
-  return filtered;
+export const filterDimensionsByEntity = (entity, ctx) => filterDimListByEntity(entity, ctx.cfg.metadata.dimensions);
+
+const filterDimListByEntity = (entity, dims) => {
+  return R.filter(dim => dim.entity === entity, dims);
 };
 
-const inSorted = (sorted, dim) => R.any(p => p.instName === dim.instName, sorted);
+const inSorted = (sorted, dim) => R.any(p => p.dimName === dim.dimName, sorted);
 
 const hasAllDependencies = (sorted, dim) => {
-  const dependencyNames = getFactorInstNames(dim.influences);
-  return R.all(instNameInDimList(sorted), dependencyNames);
+  const dependencyNames = getFactorDimNames(dim.influences);
+  if (!!dim.parent) {
+    dependencyNames.push(dim.parent);
+  }
+  return R.all(nameInDimList(sorted), dependencyNames);
 };
 
-const getFactorInstNames = (influences) => {
-  const factors = influences.map(R.prop('factor'));
-  const instNames = factors.map(f => {
-    const [_dimName, instName] = f.split('.');
-    return instName;
-  })
-  return instNames;
-};
+const getFactorDimNames = (influences) => influences.map(R.prop('factor'));
 
-const instNameInDimList = R.curry((dimensions, instName) => {
-  return R.any(p => p.instName === instName, dimensions);
+const nameInDimList = R.curry((dimensions, name) => {
+  return R.any(p => p.name === name, dimensions);
 });
 
 export const sumValuesForKey = R.curry((valueKey, arr) => {

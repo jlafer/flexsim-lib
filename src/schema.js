@@ -1,7 +1,7 @@
 //import Ajv from 'ajv';
 import * as R from 'ramda';
 const Ajv = require('ajv')
-import { findObjInList, sortDimsByFactors, sumValuesForKey } from './util';
+import { findObjInList, getDimValue, sumValuesForKey } from './util';
 
 const schema = {
   $id: 'http://twilio.com/schemas/flexsim/domain.json',
@@ -58,6 +58,7 @@ const dimDefnSchema = {
     dimDefn: {
       type: 'object',
       properties: {
+        parent: { type: 'string' },
         dataType: {
           type: 'string',
           enum: ['boolean', 'integer', 'number', 'string'],
@@ -68,61 +69,41 @@ const dimDefnSchema = {
           enum: ['enum', 'range'],
           default: 'enum'
         },
+        entity: {
+          type: 'string',
+          enum: ['tasks', 'workers'],
+          default: 'tasks'
+        },
+        phase: {
+          type: 'string',
+          enum: ['deploy', 'activity', 'arrive', 'assign', 'complete']
+        },
+        isAttribute: { type: 'boolean' },
         min: { type: 'number' },
         max: { type: 'number' },
-        values: {
-          type: 'array',
-          items: { type: 'string' }
+        options: { type: 'object' },
+        curve: {
+          type: 'string',
+          enum: ['uniform', 'bell'],
+          default: 'uniform'
         },
-        instances: {
+        valueCnt: {
+          type: 'integer',
+          default: 1
+        },
+        optionParams: { type: 'object' },
+        influences: {
           type: 'array',
           items: {
             type: 'object',
             properties: {
-              entity: {
+              factor: { type: 'string' },
+              effect: {
                 type: 'string',
-                enum: ['tasks', 'workers'],
-                default: 'tasks'
+                enum: ['shift', 'skew', 'focus'],
+                default: 'shift'
               },
-              instName: { type: 'string' },
-              phase: {
-                type: 'string',
-                enum: ['deploy', 'activity', 'arrive', 'assign', 'complete']
-              },
-              isAttribute: { type: 'boolean' },
-              curve: {
-                type: 'string',
-                enum: ['uniform', 'bell'],
-                default: 'uniform'
-              },
-              valueCnt: {
-                type: 'integer',
-                default: 1
-              },
-              valueParams: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    portion: { type: 'number' }
-                  }
-                }
-              },
-              influences: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    factor: { type: 'string' },
-                    effect: {
-                      type: 'string',
-                      enum: ['shift', 'skew', 'focus'],
-                      default: 'shift'
-                    },
-                    amount: { type: 'number' }
-                  }
-                }
-              }
+              amount: { type: 'number' }
             }
           }
         }
@@ -140,11 +121,7 @@ const stdDimNames = [
 ];
 
 const requiredDimProps = [
-  'name', 'dataType', 'expr', 'min', 'max', 'instances'
-];
-
-const requiredInstanceProps = [
-  'instName', 'entity', 'phase', 'isAttribute', 'curve', 'valueCnt'
+  'name', 'curve', 'dataType', 'entity', 'expr', 'isAttribute', 'min', 'max', 'phase', 'valueCnt'
 ];
 
 export const checkAndFillDomain = (defaults, domain) => {
@@ -195,8 +172,9 @@ const mergeDomainIntoDefaults = (defaults, domain) => {
 const checkAndFill = (domain) => {
   const { dimensions, ...parameters } = domain;
 
-  //convert dimensions to an array-of-objs for ease-of-use in the rest of flexsim
+  // convert dimensions to an array-of-objs for ease-of-use in the rest of flexsim
   const dimsArr = objDictToObjArr('name', dimensions);
+
   const finalDomain = { ...parameters, dimensions: dimsArr };
 
   fillDomain(finalDomain);
@@ -205,16 +183,25 @@ const checkAndFill = (domain) => {
   return finalDomain;
 };
 
+export const getDimension = (name, ctx) => {
+  return findObjInList('name', name, ctx.cfg.metadata.dimensions);
+};
+
+export const getDimensionValue = (ctx, dimKey, valuekey) => {
+  const { dimValues } = ctx;
+  const dim = getDimension(dimKey, ctx);
+  return getDimValue(dimValues, valuekey, dim);
+};
+
 const fillDomain = (domain) => {
-  const { dimensions, ...parameters } = domain;
+  const { dimensions } = domain;
   dimensions.forEach(fillMissingDimFields);
   const waitTimeDim = findObjInList('name', 'waitTime', dimensions);
   if (!!waitTimeDim)
-    waitTimeDim.instances[0].hasManualCalculation = true;
+    waitTimeDim.hasManualCalculation = true;
 };
 
 function fillMissingDimFields(dim) {
-  const { instances } = dim;
   if (!dim.expr)
     dim.expr = 'enum';
   if (!dim.dataType)
@@ -223,31 +210,24 @@ function fillMissingDimFields(dim) {
     dim.min = 0;
   if (!dim.max)
     dim.max = 1;
-  if (instances)
-    instances.forEach(fillMissingInstanceFields(dim));
-}
-
-const fillMissingInstanceFields = (dim) =>
-  inst => {
-    if (!inst.instName)
-      inst.instName = dim.name;
-    if (inst.isAttribute == undefined)
-      inst.isAttribute = true;
-    if (!inst.influences)
-      inst.influences = [];
-    if (!inst.entity)
-      inst.entity = 'tasks';
-    if (inst.entity === 'tasks' && !inst.phase)
-      inst.phase = 'arrive';
-    if (inst.entity === 'workers' && !inst.phase)
-      inst.phase = 'deploy';
-    if (!inst.curve)
-      inst.curve = (dim.expr === 'enum') ? 'uniform' : 'bell';
-    if (!inst.valueCnt)
-      inst.valueCnt = 1;
-    if (dim.expr === 'enum' && !inst.valueParams)
-      inst.valueParams = buildDefaultValueParams(dim.values);
+  if (dim.isAttribute == undefined)
+    dim.isAttribute = true;
+  if (!dim.influences)
+    dim.influences = [];
+  if (!dim.entity)
+    dim.entity = 'tasks';
+  if (dim.entity === 'tasks' && !dim.phase)
+    dim.phase = 'arrive';
+  if (dim.entity === 'workers' && !dim.phase)
+    dim.phase = 'deploy';
+  if (!dim.curve)
+    dim.curve = (dim.expr === 'enum') ? 'uniform' : 'bell';
+  if (!dim.valueCnt)
+    dim.valueCnt = 1;
+  if (dim.expr === 'enum' && !dim.optionParams) {
+    dim.optionParams = buildDefaultOptionParams(dim);
   }
+}
 
 export const checkDomain = (domain) => {
   const propNames = R.keys(domain);
@@ -269,50 +249,63 @@ export const checkDomain = (domain) => {
 };
 
 const checkDimFields = (dim) => {
-  const { name, dataType, expr, values, instances } = dim;
+  const { name, dataType, expr, entity, parent, phase, curve, options, optionParams } = dim;
   const dimDimNames = R.keys(dim);
   const missingDimProps = R.difference(requiredDimProps, dimDimNames);
   if (missingDimProps.length > 0)
-    throwConfigError(`dim -${name} is missing properties: ${missingPropProps.join(', ')}`);
+    throwConfigError(`dim -${name} is missing properties: ${missingDimProps.join(', ')}`);
   if (!['boolean', 'integer', 'number', 'string'].includes(dataType))
     throwConfigError(`property ${name} has invalid dataType ${dataType}`);
   if (!['enum', 'range'].includes(expr))
     throwConfigError(`property ${name} has invalid expr ${expr}`);
-  if (expr === 'enum' && (!values || values.length === 0))
-    throwConfigError(`property ${name} has expr=enum but no values specified`);
-  instances.forEach(checkInstanceFields(dim));
+  if (expr === 'enum')
+    checkEnumOptions(dim);
+  if (!['tasks', 'workers'].includes(entity))
+    throwConfigError(`dim ${name} has invalid entity ${entity}`);
+  if (!['deploy', 'activity', 'arrive', 'assign', 'complete'].includes(phase))
+    throwConfigError(`dim ${name} has invalid phase ${phase}`);
+  if (!['uniform', 'bell'].includes(curve))
+    throwConfigError(`dim ${name} has invalid curve ${curve}`);
+  if (dim.expr === 'enum' && !optionParams)
+    throwConfigError(`dim ${name} has no optionParams specified`);
+  if (dim.expr === 'enum')
+    checkEnumOptionParams(name, parent, options, optionParams);
 };
 
-const checkInstanceFields = (dim) => {
-  const { name } = dim;
-  return (inst) => {
-    const { entity, phase, curve, valueParams } = inst;
-    const instanceProps = R.keys(inst);
-    const missingInstanceProps = R.difference(requiredInstanceProps, instanceProps);
-    if (missingInstanceProps.length > 0)
-      throwConfigError(`dim -${name} is missing properties: ${missingInstanceProps.join(', ')}`);
-    if (!['tasks', 'workers'].includes(entity))
-      throwConfigError(`dim ${name} has instance with invalid entity ${entity}`);
-    if (!['deploy', 'activity', 'arrive', 'assign', 'complete'].includes(phase))
-      throwConfigError(`dim ${name} has instance with invalid phase ${phase}`);
-    if (!['uniform', 'bell'].includes(curve))
-      throwConfigError(`dim ${name} has instance with invalid curve ${curve}`);
-    if (dim.expr === 'enum' && !valueParams)
-      throwConfigError(`dim ${name} has instance with no valueParams specified`);
-    if (dim.expr === 'enum')
-      checkValueParams(name, valueParams);
-  }
+export const checkEnumOptions = (dim) => {
+  const { name, parent, options } = dim;
+
+  if (!parent && (!options || !options.all))
+    throwConfigError(`property ${name} has expr=enum but no options.all specified`);
+  if (!!parent && (!options || R.keys(options).length === 0))
+    throwConfigError(`property ${name} has expr=enum, with a parent dimension, but has no options specified`);
+  return true;
 }
 
-const buildDefaultValueParams = (values) => {
-  const valueCnt = values.length;
-  if (valueCnt === 0)
+const buildDefaultOptionParams = (dimension) => {
+  const { options, parent } = dimension;
+
+  const optionParams = {};
+  if (!parent)
+    optionParams.all = buildOptionParams(options.all);
+  else {
+    const parentOptions = R.keys(options);
+    parentOptions.forEach(parentOption => {
+      optionParams[parentOption] = buildOptionParams(options[parentOption]);
+    });
+  }
+  return optionParams;
+}
+
+const buildOptionParams = (parentValOptions) => {
+  const optionCnt = parentValOptions.length;
+  if (optionCnt === 0)
     return [];
-  const equalPortion = Math.floor(100 / valueCnt);
-  const gap = 100 - (equalPortion * valueCnt);
-  const valueParams = R.map(_value => ({ portion: equalPortion / 100 }), values);
-  valueParams[0].portion += (gap / 100);
-  return valueParams;
+  const equalPortion = Math.floor(100 / optionCnt);
+  const gap = 100 - (equalPortion * optionCnt);
+  const optionParams = R.map(_option => ({ portion: equalPortion / 100 }), parentValOptions);
+  optionParams[0].portion += (gap / 100);
+  return optionParams;
 };
 
 const objDictToObjArr = (key, dictByName) => {
@@ -321,10 +314,27 @@ const objDictToObjArr = (key, dictByName) => {
   return arr;
 };
 
-const checkValueParams = (name, valueParams) => {
-  const sum = sumValuesForKey('portion', valueParams);
+const checkEnumOptionParams = (name, parent, options, optionParams) => {
+  if (!parent)
+    checkOptionParams(name, 'all', options, optionParams);
+  else {
+    const parentOptions = R.keys(options);
+    parentOptions.forEach(parentOption => {
+      checkOptionParams(name, parentOption, options, optionParams);
+    });
+  }
+};
+
+const checkOptionParams = (dimName, parentOption, options, optionParams) => {
+  const optionList = options[parentOption];
+  const optionParamsList = optionParams[parentOption];
+  if (!optionParamsList || optionParamsList.length === 0)
+    throwConfigError(`property ${dimName} has no optionParams for parent option ${parentOption}`);
+  if (optionList.length !== optionParamsList.length)
+    throwConfigError(`property ${dimName} has optionParams not matching options for parent option ${parentOption}`);
+  const sum = sumValuesForKey('portion', optionParamsList);
   if (sum < 0.99 || sum > 1.01)
-    throwConfigError(`property ${name} has instance with valueParams not summing to 1`);
+    throwConfigError(`property ${dimName} has optionParams portions not summing to 1 for parent option ${parentOption}`);
 };
 
 const filterStdDims = ([name, _dim]) => stdDimNames.includes(name);
@@ -341,31 +351,6 @@ function getStdDims(dimensions) {
     .filter(filterStdDims);
   return R.fromPairs(stdDimPairs);
 }
-
-export const getDimInstances = (dimensions) => {
-  const tgtDimInstances = R.reduce(
-    (accum, testDim) => {
-      if (testDim.instances.length > 0) {
-        const { instances, ...restOfDim } = testDim;
-        const dimAndInstArr = R.map(
-          (inst) => {
-            const dimAndInst = { ...restOfDim, ...inst };
-            return dimAndInst;
-          },
-          testDim.instances
-        );
-        return [...accum, ...dimAndInstArr];
-      }
-      return accum
-    },
-    [],
-    dimensions
-  );
-  return sortDimsByFactors(tgtDimInstances);
-};
-
-export const getSingleDimInstance = (name, dimInstances) =>
-  findObjInList('instName', name, dimInstances);
 
 const throwConfigError = (msg) => {
   console.error(`ERROR: ${msg}`);

@@ -1,76 +1,71 @@
 import * as R from 'ramda';
 
-import { getSingleDimInstance } from './schema';
-import { filterDimInstances } from './util';
+import { getDimension } from './schema';
+import { filterDimensions, getDimValue } from './util';
 
 // The main purpose is to calculate new dim values for the valuesDescriptor
 // and put them into context.dimValues under 'tasks' or 'workers'.
-// It also returns the values calculated for clients that need to get
+// It also returns the values calculated for clients that need
 // just the newly-calculated values
 
 export function calcDimsValues(ctx, valuesDescriptor) {
-  const { dimInstances } = ctx;
-  const instancesToCalc = filterDimInstances(valuesDescriptor, dimInstances)
-    .filter(dimAndInst => !dimAndInst.hasManualCalculation);
+  const dimsToCalc = filterDimensions(valuesDescriptor, ctx)
+    .filter(dimension => !dimension.hasManualCalculation);
   const values = R.reduce(
     calcAndAccumValue(ctx, valuesDescriptor),
     {},
-    instancesToCalc
+    dimsToCalc
   );
   return values;
 }
 
-const calcAndAccumValue = R.curry((ctx, valuesDescriptor, accum, dimAndInst) => {
-  const value = calcAndSaveValue(ctx, valuesDescriptor, dimAndInst);
-  const keyPath = R.split('.', dimAndInst.instName);
-  return R.assocPath(keyPath, value, accum);
+const calcAndAccumValue = R.curry((ctx, valuesDescriptor, accum, dimension) => {
+  const value = calcAndSaveValue(ctx, valuesDescriptor, dimension);
+  return R.assoc(dimension.name, value, accum);
 });
 
-const calcAndSaveValue = (ctx, valuesDescriptor, dimAndInst) => {
+const calcAndSaveValue = (ctx, valuesDescriptor, dimension) => {
   const { dimValues } = ctx;
-  const value = calcValue(ctx, valuesDescriptor, dimAndInst);
-  const keyPath = R.split('.', dimAndInst.instName);
-  addDimValueToContext(dimValues, valuesDescriptor, keyPath, value);
+  const value = calcValue(ctx, valuesDescriptor, dimension);
+  addDimValueToContext(dimValues, valuesDescriptor, dimension.name, value);
   return value;
 };
 
-export const calcValue = R.curry((ctx, valuesDescriptor, dimAndInst) => {
-  const value = (dimAndInst.valueCnt === 1)
-    ? calcScalarValue(ctx, valuesDescriptor, dimAndInst)
-    : calcArrayValue(ctx, valuesDescriptor, dimAndInst);
+export const calcValue = R.curry((ctx, valuesDescriptor, dimension) => {
+  const value = (dimension.valueCnt === 1)
+    ? calcScalarValue(ctx, valuesDescriptor, dimension)
+    : calcArrayValue(ctx, valuesDescriptor, dimension);
   return value;
 });
 
-const addDimValueToContext = (dimValues, valuesDescriptor, keyPath, value) => {
-  const { id, entity } = valuesDescriptor;
-  dimValues[entity][id] = R.assocPath(
-    keyPath,
-    value,
-    dimValues[entity][id]
-  );
+const addDimValueToContext = (dimValues, valuesDescriptor, name, value) => {
+  const { entity, id } = valuesDescriptor;
+
+  const valuePath = [id, name];
+  dimValues[entity] = R.assocPath(valuePath, value, dimValues[entity]);
 };
 
-const calcArrayValue = (ctx, valuesDescriptor, dimAndInst) => {
+const calcArrayValue = (ctx, valuesDescriptor, dimension) => {
   const res = [];
-  for (let i = 0; i < dimAndInst.valueCnt; i++) {
-    const value = calcScalarValue(ctx, valuesDescriptor, dimAndInst);
+  for (let i = 0; i < dimension.valueCnt; i++) {
+    const value = calcScalarValue(ctx, valuesDescriptor, dimension);
     res.push(value);
   }
   return R.uniq(res);
 };
 
-const calcScalarValue = (ctx, valuesDescriptor, dimAndInst) => {
-  const value = (dimAndInst.expr === 'range')
-    ? calcRangeValue(ctx, valuesDescriptor, dimAndInst)
-    : calcEnumValue(ctx, dimAndInst);
+const calcScalarValue = (ctx, valuesDescriptor, dimension) => {
+  const value = (dimension.expr === 'range')
+    ? calcRangeValue(ctx, valuesDescriptor, dimension)
+    : calcEnumValue(ctx, valuesDescriptor, dimension);
   return value;
 }
 
-const calcRangeValue = (ctx, valuesDescriptor, dimAndInst) => {
-  const { dataType, curve, max, min } = dimAndInst;
+const calcRangeValue = (ctx, valuesDescriptor, dimension) => {
+  const { dataType, curve, max, min } = dimension;
   const decValue = (curve == 'uniform')
-    ? calcUniformValue(ctx, dimAndInst)
-    : calcBellValue(ctx, valuesDescriptor, dimAndInst);
+    ? calcUniformValue(ctx, dimension)
+    : calcBellValue(ctx, valuesDescriptor, dimension);
   let value = (dataType === 'integer') ? Math.round(decValue) : decValue;
   if (value > max)
     value = max;
@@ -79,26 +74,32 @@ const calcRangeValue = (ctx, valuesDescriptor, dimAndInst) => {
   return value;
 };
 
-const calcEnumValue = (ctx, dimAndInst) => {
-  const { values, valueParams } = dimAndInst;
-  const portions = valueParams.map(R.prop('portion'));
-  const randNum = calcUniformValue(ctx, dimAndInst);
+const calcEnumValue = (ctx, valuesDescriptor, dimension) => {
+  const { options, optionParams, parent } = dimension;
+
+  const parentValue = (!parent)
+    ? 'all'
+    : getDimValue(ctx.dimValues, valuesDescriptor.id, getDimension(parent, ctx));
+  const portions = optionParams[parentValue].map(R.prop('portion'));
+  const randNum = calcUniformValue(ctx, dimension);
   const idx = getPortionsIndexUniform(portions, randNum);
-  const value = values[idx];
+  const value = options[parentValue][idx];
   return value;
 };
 
-const calcUniformValue = (ctx, dimAndInst) => {
+const calcUniformValue = (ctx, dimension) => {
   const { rng } = ctx;
-  const { min, max } = dimAndInst;
+  const { min, max } = dimension;
+
   const size = max - min;
   const decValue = (rng() * size) + min;
   return decValue;
 };
 
-const calcBellValue = (ctx, valuesDescriptor, dimAndInst) => {
+const calcBellValue = (ctx, valuesDescriptor, dimension) => {
   const { rng } = ctx;
-  const { min, max, influences } = dimAndInst;
+  const { min, max, influences } = dimension;
+
   const size = max - min;
   const mean = min + (size / 2);
   const stddev = size / 10;
@@ -110,15 +111,14 @@ const calcBellValue = (ctx, valuesDescriptor, dimAndInst) => {
 const calculateInfluencesAmount = (ctx, valuesDescriptor, influences) => {
   if (influences.length === 0)
     return 0;
-  const { dimInstances, dimValues } = ctx;
+  const { dimValues } = ctx;
   const { entity, id } = valuesDescriptor;
   const shifts = R.map(
     influence => {
       const { factor, amount } = influence;
-      const [_dim, instName] = factor.split('.');
-      const dimAndInst = getSingleDimInstance(instName, dimInstances);
-      const { min, max } = dimAndInst;
-      const factorValue = dimValues[entity][id][instName];
+      const dimension = getDimension(factor, ctx);
+      const { min, max } = dimension;
+      const factorValue = dimValues[entity][id][factor];
       const size = max - min;
       const mean = min + (size / 2);
       const factorDiff = (factorValue - mean);
@@ -131,16 +131,17 @@ const calculateInfluencesAmount = (ctx, valuesDescriptor, influences) => {
 };
 
 export function calcActivityChange(ctx, worker) {
-  const { dimInstances, rng } = ctx;
-  const dimAndInst = getSingleDimInstance('activity', dimInstances);
-  const activityName = calcEnumValue(ctx, dimAndInst);
+  const { rng } = ctx;
+  const dimension = getDimension('activity', ctx);
+  const valuesDescriptor = { entity: 'workers', phase: 'activity', id: worker.attributes.full_name };
+  const activityName = calcEnumValue(ctx, valuesDescriptor, dimension);
 
   const currActivityName = worker.activityName;
-  const idx = dimAndInst.values.indexOf(currActivityName);
+  const idx = dimension.options.all.indexOf(currActivityName);
   if (idx === -1)
     return ['Available', 5000];
-  const valueParam = dimAndInst.valueParams[idx];
-  const delay = randomSkewNormal(rng, valueParam.baseDur, valueParam.baseDur * 0.20, 0);
+  const optionParam = dimension.optionParams.all[idx];
+  const delay = randomSkewNormal(rng, optionParam.baseDur, optionParam.baseDur * 0.20, 0);
   const delayMsec = Math.round(delay * 1000);
 
   return [activityName, delayMsec];
