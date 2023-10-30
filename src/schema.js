@@ -7,8 +7,9 @@ const schema = {
   $id: 'http://twilio.com/schemas/flexsim/domain.json',
   type: 'object',
   properties: {
-    brand: { type: 'string' },
-    agentCnt: { type: 'integer' },
+    brand: { type: 'string', default: 'FlexDemo' },
+    agentCnt: { type: 'integer', default: 12 },
+    realVoice: { type: 'boolean', default: false },
     queueFilterDim: { type: 'string' },
     queueWorkerDims: {
       type: 'array',
@@ -113,7 +114,7 @@ const dimDefnSchema = {
 };
 
 export const requiredPropNames = [
-  'brand', 'agentCnt', 'center', 'customers', 'queueFilterDim', 'queueWorkerDims', 'dimensions'
+  'brand', 'agentCnt', 'center', 'customers', 'queueFilterDim', 'queueWorkerDims', 'realVoice', 'dimensions'
 ];
 
 const stdDimNames = [
